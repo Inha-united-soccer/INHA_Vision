@@ -1,4 +1,4 @@
-# INHA-Soccer 
+# INHA-Vision
 <p align="center">
 <img src="https://raw.githubusercontent.com/Inha-united-soccer/.github/main/profile/assets/inha_logo.jpeg"
      width="400" height="" />
@@ -7,6 +7,6 @@
 Hi 👋 We are Inha-United !
 Inha-United is a team competing in the RoboCup Soccer Humanoid League.
 
-This repository provides a comprehensive set of algorithms and methodologies required for a robot to autonomously perform a soccer game.
+This repository focuses on vision algorithms and methodologies for perception in autonomous humanoid soccer robots, and includes object detection as well as processing pipelines that convert detected objects into the robot coordinate frame.
 
 Starting from the demo provided by Booster Robotics, we have modularized the system, extended its functionality, and continuously improved its performance through our own research and development efforts.
