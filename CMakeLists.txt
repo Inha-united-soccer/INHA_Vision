@@ -42,9 +42,6 @@ include_directories(
 )
 
 add_subdirectory(src)
-if(BUILD_TEST)
-  add_subdirectory(test)
-endif()
 
 install(DIRECTORY launch
   DESTINATION share/${PROJECT_NAME})
