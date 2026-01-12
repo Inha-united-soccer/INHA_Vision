@@ -1,0 +1,93 @@
+camera:
+  type: d-robotics
+  intrin:
+    fx: 213.62648
+    fy: 213.62648
+    cx: 242.839554
+    cy: 223.966568
+    distortion_model: 0
+    distortion_coeffs:
+      []
+  extrin:
+    -
+      - 0.0927495956
+      - 0.00744829793
+      - 0.995661557
+      - -0.00978016853
+    -
+      - -0.995669305
+      - 0.00706163328
+      - 0.0926974788
+      - 0.0303872209
+    -
+      - -0.00634055864
+      - -0.999947429
+      - 0.00807100441
+      - -0.00966392457
+    -
+      - 0
+      - 0
+      - 0
+      - 1
+  pitch_compensation: 0.8
+  yaw_compensation: 1.8
+  z_compensation: 0
+  
+detection_model:
+  model_path: ./src/vision/model/best_digua_second_10.3.engine
+  confidence_threshold: 0.2 # class의 default threshold
+  nms_threshold: 0.4
+  classnames: [Ball, Goalpost, Person, LCross, TCross, XCross, PenaltyPoint, Opponent, BRMarker]
+  post_process:
+    single_ball_assumption: false
+    confidence_thresholds:
+      Ball: 0.4
+      Goalpost: 0.4
+      Person: 0.4
+      LCross: 0.3
+      TCross: 0.3
+      XCross: 0.3
+      PenaltyPoint: 0.3
+      Opponent: 0.4
+      BRMarker: 0.2
+
+segmentation_model:
+  model_path: ./src/vision/model/best_seg_orin_10.3.engine
+  confidence_threshold: 0.3
+  nms_threshold: 0.9
+
+use_depth: true
+use_imu: true # imu로 cartesian 좌표 보정할 지 
+
+ball_pose_estimator:
+  use_depth: false # 볼 위치 추정 시 depth 사용할지
+  radius: 0.109 # 공의 실제 반지름 
+  down_sample_leaf_size: 0.01 # Voxel Grid 다운샘플링 해상도 (meters)
+  cluster_distance_threshold: 0.01 # 클러스터링 시 “같은 물체”로 묶을 최대 거리 (meters)
+  fitting_distance_threshold: 0.01 # 구 피팅(Sphere fitting) 시 inlier 허용 오차
+  minimum_cluster_size: 150 # 이 정도 점 수는 있어야 공 후보로 인정
+  filter_distance: 1.2 # 카메라 기준 최대 공 검출 거리
+  check_ball_height: true # 공의 z 높이가 “물리적으로 말이 되는지” 검사
+
+human_like_pose_estimator:
+  use_depth: false
+  down_sample_leaf_size: 0.01
+  fitting_distance_threshold: 0.01
+  statistic_outlier_multiplier: 0.01
+
+field_marker_pose_estimator:
+  refine: false
+  line_segment_area_threshold: 75
+  
+calibration:
+  sync_max_time_diff_ms: 1400
+  offset:
+    exclude_distance: 2.0
+    zero_translation: true
+    field_marker_path: ./src/vision/config/field.yaml
+  handeye:
+    calibration_time: 2000-01-01-09-29-08
+    reprojection_error: 3.5616553263245252
+
+misc:
+  save_data_nonstationary: true
