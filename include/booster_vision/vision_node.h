@@ -102,7 +102,7 @@ private:
     rclcpp::Subscription<geometry_msgs::msg::TransformStamped>::SharedPtr pose_tf_sub_;
 
     // 승재욱 추가 
-    rclcpp::Subscription<booster_interface::msg::LowState>::SharedPtr lowStateSubscription;
+    rclcpp::Subscription<booster_interface::msg::LowState>::SharedPtr imu_sub_;
 
     std::shared_ptr<image_transport::ImageTransport> it_;
     image_transport::Subscriber color_sub_;
@@ -133,7 +133,8 @@ private:
     Eigen::Vector3f imu_rpy_{0.f, 0.f, 0.f};
     Eigen::Vector3f imu_gyro_{0.f, 0.f, 0.f};
     Eigen::Vector3f imu_acc_{0.f, 0.f, 0.f};
-    bool imu_start = false;
+    bool imu_ready_ = false;
+    double imu_timestamp_ = 0.0;
 };
 
 } // namespace booster_vision

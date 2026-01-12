@@ -76,8 +76,6 @@ public:
 
     void Init(const YAML::Node &node) override;
     Pose EstimateByColor(const Pose &p_eye2base, const DetectionRes &detection, const cv::Mat &rgb) override;
-    // 승재욱 추가
-    Pose EstimateByDepth(const Pose &p_eye2base, const DetectionRes &detection, const cv::Mat &rgb, const cv::Mat &depth) override;
 
 private:
     bool refine_;

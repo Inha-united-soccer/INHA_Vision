@@ -429,7 +429,7 @@ void VisionNode::ProcessData(SyncedDataBlock &synced_data, vision_interface::msg
         // detection 시 받은 pose 
         auto xyz = p_head2base.getTranslationVec();
         auto rpy = p_head2base.getEulerAnglesVec();
-        detection_obj.received_pos = {xyz[0], xyz[1], yz[2],
+        detection_obj.received_pos = {xyz[0], xyz[1], xyz[2],
                                       static_cast<float>(rpy[0] / CV_PI * 180), static_cast<float>(rpy[1] / CV_PI * 180), static_cast<float>(rpy[2] / CV_PI * 180)};
         
         // confidence 0~100으로 조정
@@ -705,7 +705,7 @@ void VisionNode::CalParamCallback(const vision_interface::msg::CalParam::SharedP
 }
 
 // 승재욱 추가
-void VisionNode::lowStateCallback(const booster_interface::msg::LowState msg){
+void VisionNode::lowStateCallback(const booster_interface::msg::LowState &msg){
     std::lock_guard<std::mutex> lock(imu_mutex_);
 
     imu_rpy_(0) = msg.imu_state.rpy[0];
