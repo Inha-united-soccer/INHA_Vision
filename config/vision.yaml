@@ -34,7 +34,7 @@ camera:
   z_compensation: 0
   
 detection_model:
-  model_path: ./src/vision/model/best_digua_second_10.3.engine
+  model_path: ./src/vision/model/inha_darknet_small_v3.engine
   confidence_threshold: 0.2 # class의 default threshold
   nms_threshold: 0.4
   classnames: [Ball, Goalpost, Person, LCross, TCross, XCross, PenaltyPoint, Opponent, BRMarker]
