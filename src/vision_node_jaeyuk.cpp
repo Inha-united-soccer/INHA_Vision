@@ -36,6 +36,13 @@ VisionNode::VisionNode(const std::string &node_name) :
     this->declare_parameter<std::string>("segmentation_model_path", "");
     this->declare_parameter<std::string>("camera_type", "");
 }
+// 승재욱 추가 -> 소멸자 생성 (안전한 thread 종료)
+VisionNode::~VisionNode() {
+    is_running_ = false;
+    if (processing_thread_.joinable()) {
+        processing_thread_.join();
+    }
+}
 
 void VisionNode::Init(const std::string &cfg_template_path, const std::string &cfg_path) {
     if (!std::filesystem::exists(cfg_template_path)) {
@@ -175,7 +182,6 @@ void VisionNode::Init(const std::string &cfg_template_path, const std::string &c
     std::string log_root = std::string(std::getenv("HOME")) + "/Workspace/vision_log/" + getTimeString();
     data_logger_ = save_data_ ? std::make_shared<DataLogger>(log_root, save_data_nonstationary) : nullptr;
     data_logger_->LogYAML(node, "vision_local.yaml");
-    seg_data_syncer_ = std::make_shared<DataSyncer>(false);
 
     // init pose estimator
     pose_estimator_ = std::make_shared<PoseEstimator>(intr_);
@@ -221,78 +227,61 @@ void VisionNode::Init(const std::string &cfg_template_path, const std::string &c
         depth_topic = "/camera/camera/aligned_depth_to_color/image_raw";
     }
 
+    // 승재욱 추가 -> (Best Effort, Volatile) 사용 // 이렇게 해야 큐가 막히지 않고, 네트워크 지연 시 패킷을 과감히 버려서 최신성을 유지
+    // rclcpp::QoS img_qos = rclcpp::SensorDataQoS();
+    rclcpp::QoS img_qos(rclcpp::KeepLast(1));
+    img_qos.reliable();
+    img_qos.transient_local();
 
     // Callback group 4개 생성 (MutuallyExclusive)
     // ROS2 executor에서 콜백을 병렬로 돌릴 때 같은 그룹 내에서는 동시에 실행 안 됨 / 그룹이 다르면 병렬 가능
-    // ColorCallback / SegmentationCallback / DepthCallback / PoseCallback 등을 서로 간섭 줄이면서 돌리려는 설계
+    // ColorCallback / DepthCallback / PoseCallback 등을 서로 간섭 줄이면서 돌리려는 설계
     callback_group_sub_1_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
     callback_group_sub_2_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
     callback_group_sub_3_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+    // 승재욱 추가
     callback_group_sub_4_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
-    // 승재욱 추가
-    callback_group_sub_5_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
     
-    auto sub_opt_1 = rclcpp::SubscriptionOptions(); // color for detect
+    auto sub_opt_1 = rclcpp::SubscriptionOptions(); // color 
     sub_opt_1.callback_group = callback_group_sub_1_;
-    auto sub_opt_2 = rclcpp::SubscriptionOptions(); // color for seg
+    auto sub_opt_2 = rclcpp::SubscriptionOptions(); // depth
     sub_opt_2.callback_group = callback_group_sub_2_;
-    auto sub_opt_3 = rclcpp::SubscriptionOptions(); // depth 
+    auto sub_opt_3 = rclcpp::SubscriptionOptions(); // head_pose
     sub_opt_3.callback_group = callback_group_sub_3_;
-    auto sub_opt_4 = rclcpp::SubscriptionOptions(); // head_pose
-    sub_opt_4.callback_group = callback_group_sub_4_;
     // 승재욱 추가
-    auto sub_opt_5 = rclcpp::SubscriptionOptions(); // imu
-    sub_opt_5.callback_group = callback_group_sub_5_;
+    auto sub_opt_4 = rclcpp::SubscriptionOptions(); // imu
+    sub_opt_4.callback_group = callback_group_sub_4_;
 
-    // 어떤 전송 방식으로 이미지를 주고받을지
-    it_ = std::make_shared<image_transport::ImageTransport>(shared_from_this());
-    image_transport::TransportHints hints(this, "compressed");
-
-    // Subscribe to both raw and compressed image topics for color
-    // if (camera_type_.find("compressed") != std::string::npos) {
-    //     color_sub_ = it_->subscribe(color_topic, 1, &VisionNode::ColorCallback, this, &hints, sub_opt_1);
-    // } 
-    // else {
-    //     color_sub_ = it_->subscribe(color_topic, 1, &VisionNode::ColorCallback, this, nullptr, sub_opt_1);
-    // } 
-    // if (use_depth_) {
-    //     depth_sub_ = it_->subscribe(depth_topic, 1, &VisionNode::DepthCallback, this, nullptr, sub_opt_3);
-    // }
-    if (camera_type_.find("compressed") != std::string::npos) {
-        color_sub_ = it_->subscribe(color_topic, 2, &VisionNode::ColorCallback, this, &hints, sub_opt_1);
-    } 
-    else {
-        color_sub_ = it_->subscribe(color_topic, 2, &VisionNode::ColorCallback, this, nullptr, sub_opt_1);
-    } 
-    if (use_depth_) {
-        depth_sub_ = it_->subscribe(depth_topic, 2, &VisionNode::DepthCallback, this, nullptr, sub_opt_3);
+    // 승재욱 추가 -> 카메라 callback 변경
+    color_sub_ = this->create_subscription<sensor_msgs::msg::Image>(color_topic, img_qos, std::bind(&VisionNode::ColorCallback, this, std::placeholders::_1), sub_opt_1);
+    if (use_depth_){
+        depth_sub_ = this->create_subscription<sensor_msgs::msg::Image>(depth_topic, img_qos, std::bind(&VisionNode::DepthCallback, this, std::placeholders::_1), sub_opt_2);
     }
-
 
     detection_pub_ = this->create_publisher<vision_interface::msg::Detections>("/booster_vision/detection", rclcpp::QoS(1));
 
     if (node["segmentation_model"]) {
         std::cout << "create sub for segmentor" << std::endl;
-        if (camera_type_.find("compressed") != std::string::npos) {
-            color_seg_sub_ = it_->subscribe(color_topic, 1, &VisionNode::SegmentationCallback, this, &hints, sub_opt_2);
-        } else {
-            color_seg_sub_ = it_->subscribe(color_topic, 1, &VisionNode::SegmentationCallback, this, nullptr, sub_opt_2);
-        } 
         field_line_pub_ = this->create_publisher<vision_interface::msg::LineSegments>("/booster_vision/line_segments", rclcpp::QoS(1));
     }
+
     ball_pub_ = this->create_publisher<vision_interface::msg::Ball>("/booster_vision/ball", rclcpp::QoS(1));
 
     if (offline_mode_) {
         pose_tf_sub_ = this->create_subscription<geometry_msgs::msg::TransformStamped>("/booster_vision/t_head2base", 10, std::bind(&VisionNode::PoseTFCallBack, this, std::placeholders::_1));
     } 
     else {
-        pose_sub_ = this->create_subscription<geometry_msgs::msg::Pose>("/head_pose", 10, std::bind(&VisionNode::PoseCallBack, this, std::placeholders::_1), sub_opt_4);
+        pose_sub_ = this->create_subscription<geometry_msgs::msg::Pose>("/head_pose", 10, std::bind(&VisionNode::PoseCallBack, this, std::placeholders::_1), sub_opt_3);
         calParam_sub_ = this->create_subscription<vision_interface::msg::CalParam>("/booster_vision/cal_param", 10, std::bind(&VisionNode::CalParamCallback, this, std::placeholders::_1));
         pose_tf_pub_ = this->create_publisher<geometry_msgs::msg::TransformStamped>("/booster_vision/t_head2base", rclcpp::QoS(10));
 
         // 승재욱 추가 
-        imu_sub_ = this->create_subscription<booster_interface::msg::LowState>("/low_state", 10, std::bind(&VisionNode::lowStateCallback, this, std::placeholders::_1), sub_opt_5);
+        imu_sub_ = this->create_subscription<booster_interface::msg::LowState>("/low_state", 10, std::bind(&VisionNode::lowStateCallback, this, std::placeholders::_1), sub_opt_4);
     }
+
+    // 승재욱 추가 -> thread 실행
+    is_running_ = true;
+    processing_thread_ = std::thread(&VisionNode::RunImageProcessingLoop, this);
 }
 
 void VisionNode::ProcessData(SyncedDataBlock &synced_data, vision_interface::msg::Detections &detection_msg) {
@@ -528,36 +517,64 @@ void VisionNode::ProcessData(SyncedDataBlock &synced_data, vision_interface::msg
 }
 
 void VisionNode::ColorCallback(const sensor_msgs::msg::Image::ConstSharedPtr &msg) {
-    std::cout << "new color for det received" << std::endl;
-    auto start = std::chrono::system_clock::now(); 
+    // 여기서는 가져오는 것만 한다.
+    std::lock_guard<std::mutex> lock(image_mutex_); 
+    latest_image_msg_ = msg;
+    new_image_received_ = true;
+}
 
-    if (!msg) {
-        std::cerr << "empty image message." << std::endl;
-        return;
+void VisionNode::RunImageProcessingLoop(){
+
+    while (rclcpp::ok() && is_running_) {
+        sensor_msgs::msg::Image::ConstSharedPtr current_msg = nullptr;
+
+        // 데이터를 가져오는 순간만 Mutex를 걺 (아주 짧음)
+        {
+            std::lock_guard<std::mutex> lock(image_mutex_);
+            if (new_image_received_) {
+                current_msg = latest_image_msg_;
+                new_image_received_ = false; // 처리했다고 표시
+            }
+        }
+
+        // 새 데이터 없으면 쉼 (CPU 점유율 방어)
+        if (!current_msg) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+            continue;
+        }
+
+        // auto start = std::chrono::steady_clock::now();
+
+        // 여기서부터는 Mutex 없이 편하게 무거운 작업 수행 (Lock 밖임)
+        cv::Mat img;
+        try {
+            img = toCVMat(*current_msg);
+        } 
+        catch (std::exception &e) {
+            std::cerr << "cv_bridge exception: " << e.what() << std::endl;
+            continue;
+        }
+
+        double timestamp = current_msg->header.stamp.sec + static_cast<double>(current_msg->header.stamp.nanosec) * 1e-9;
+
+        // Syncer 사용 (하나의 Syncer로 통합)
+        SyncedDataBlock synced_data = data_syncer_->getSyncedDataBlock(ColorDataBlock(img, timestamp));
+
+        // Detection 수행
+        vision_interface::msg::Detections detection_msg;
+        detection_msg.header = current_msg->header;
+        ProcessData(synced_data, detection_msg);
+
+        // 5. Segmentation 수행 (같은 synced_data 재활용)
+        if (segmentor_) {
+            vision_interface::msg::LineSegments field_line_segs_msg;
+            field_line_segs_msg.header = current_msg->header;
+            ProcessSegmentationData(synced_data, field_line_segs_msg);
+        }
+
+        // auto end = std::chrono::steady_clock::now();
+        // std::cout << "Processing Time: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
     }
-
-    cv::Mat img;
-    try {
-        // ros img -> opencv mat로 변환
-        img = toCVMat(*msg);
-    } 
-    catch (std::exception &e) {
-        std::cerr << "cv_bridge exception: " << e.what() << std::endl;
-        return;
-    }
-
-    vision_interface::msg::Detections detection_msg;
-    detection_msg.header = msg->header;
-    double timestamp = msg->header.stamp.sec + static_cast<double>(msg->header.stamp.nanosec) * 1e-9; // 초 단위로 변경
-
-    // get synced data 
-    // datasyncer로 동기화 블록 만들기
-    SyncedDataBlock synced_data = data_syncer_->getSyncedDataBlock(ColorDataBlock(img, timestamp));
-    
-    ProcessData(synced_data, detection_msg); // 데이터 처리
-    auto end = std::chrono::system_clock::now();
-    std::cout << "color callback takes: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
-              << "ms" << std::endl;
 }
 
 void VisionNode::ProcessSegmentationData(SyncedDataBlock &synced_data, vision_interface::msg::LineSegments &field_line_segs_msg) {
@@ -610,33 +627,6 @@ void VisionNode::ProcessSegmentationData(SyncedDataBlock &synced_data, vision_in
     }
 }
 
-void VisionNode::SegmentationCallback(const sensor_msgs::msg::Image::ConstSharedPtr &msg) {
-    if (!segmentor_) {
-        std::cerr << "no segmentor loaded." << std::endl;
-        return;
-    }
-    std::cout << "new color for seg received" << std::endl;
-    if (!msg) {
-        std::cerr << "empty image message." << std::endl;
-        return;
-    }
-
-    cv::Mat img;
-    try { img = toCVMat(*msg).clone(); } 
-    catch (std::exception &e) {
-        std::cerr << "cv_bridge exception: " << e.what() << std::endl;
-        return;
-    }
-
-    vision_interface::msg::LineSegments field_line_segs_msg;
-    field_line_segs_msg.header = msg->header;
-    double timestamp = msg->header.stamp.sec + static_cast<double>(msg->header.stamp.nanosec) * 1e-9;
-
-    // get synced data
-    SyncedDataBlock synced_data = seg_data_syncer_->getSyncedDataBlock(ColorDataBlock(img, timestamp));
-    ProcessSegmentationData(synced_data, field_line_segs_msg);
-}
-
 void VisionNode::DepthCallback(const sensor_msgs::msg::Image::ConstSharedPtr &msg) {
     std::cout << "new depth received" << std::endl;
     // cv_bridge::CvImagePtr cv_ptr;
@@ -664,13 +654,11 @@ void VisionNode::DepthCallback(const sensor_msgs::msg::Image::ConstSharedPtr &ms
 
     double timestamp = msg->header.stamp.sec + static_cast<double>(msg->header.stamp.nanosec) * 1e-9;
     data_syncer_->AddDepth(DepthDataBlock(img, timestamp));
-    // seg_data_syncer_->AddDepth(DepthDataBlock(img, timestamp));
 }
 
 void VisionNode::PoseTFCallBack(const geometry_msgs::msg::TransformStamped::SharedPtr msg) {
     double timestamp = msg->header.stamp.sec + static_cast<double>(msg->header.stamp.nanosec) * 1e-9;
     data_syncer_->AddPose(PoseDataBlock(Pose(*msg), timestamp));
-    seg_data_syncer_->AddPose(PoseDataBlock(Pose(*msg), timestamp));
 }
 
 void VisionNode::PoseCallBack(const geometry_msgs::msg::Pose::SharedPtr msg) {
@@ -686,7 +674,6 @@ void VisionNode::PoseCallBack(const geometry_msgs::msg::Pose::SharedPtr msg) {
     float qw = msg->orientation.w;
     auto pose = Pose(x, y, z, qx, qy, qz, qw);
     data_syncer_->AddPose(PoseDataBlock(pose, timestamp));
-    seg_data_syncer_->AddPose(PoseDataBlock(pose, timestamp));
 
     if (!offline_mode_) {
         auto tf_msg = pose.toRosTFMsg();
