@@ -23,7 +23,7 @@ Starting from the baseline vision demo provided by **Booster Robotics**, we rede
 
 ---
 
-## Key Capabilities
+## Key Features
 
 ### **Real-Time Object Detection**
 We employ a YOLOv8-based detector optimized for embedded platforms.
