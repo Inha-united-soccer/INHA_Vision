@@ -5,10 +5,9 @@
 
 [![ROS2](https://img.shields.io/badge/ROS2-Humble-3490dc.svg?style=for-the-badge&logo=ros&logoColor=white)](https://docs.ros.org/en/humble/)
 [![C++](https://img.shields.io/badge/C++-17-00599C.svg?style=for-the-badge&logo=c%2B%2B&logoColor=white)](https://en.cppreference.com/w/cpp/17)
-[![BehaviorTree](https://img.shields.io/badge/BehaviorTree-V4-2ca02c.svg?style=for-the-badge)](https://www.behaviortree.dev/)
 [![License](https://img.shields.io/badge/License-Apache_2.0-yellow.svg?style=for-the-badge)](LICENSE)
 
-*Real-time Detection • 3D position estimation • Robust Perception under Motion*
+*robust Detection • real-time inference • 3D position estimation
 
 ---
 </div>
@@ -16,33 +15,28 @@
 ## Mission & Vision
 **"To enable humanoid robots to perceive the game reliably, even while moving."**
 
-**INHA Vision** aims to provide a robust and extensible perception pipeline for humanoid soccer robots operating in highly dynamic environments.  
-Our goal is not only to detect objects, but to **reliably infer their 3D positions in the robot coordinate frame under walking, vibration, and partial occlusion**.
 
-Starting from the baseline vision demo provided by **Booster Robotics**, we redesigned the system into a modular, research-oriented perception stack and continuously improved its robustness through real-world experiments and competition-driven development.
+The **INHA Vision** is designed as a visual perception module to enable stable recognition even during movement. It reliably detects and tracks balls, robots, goalposts, and field markers(L, T, X) in dynamic environments with varying lighting conditions.
 
 ---
 
 ## Key Features
 
-### **Real-Time Object Detection**
+### **Robust Object Detection**
 We employ a YOLOv8-based detector optimized for embedded platforms.
-* Detection of **ball, goalposts, robots, and field markers (L/T/X, penalty point)**
-* TensorRT-optimized inference for **Jetson Orin NX**
-* Stable frame rate under on-board real-time constraints
+* Detection of **ball, goalposts, robots, and field markers (L, T, X)**
+* Trained on over 40,000 annotated images, including public datasets and in-house data
 
 
-### **3D Localization in Robot Frame**
+### **Real-Time Inference**
+To meet strict real-time constraints on embedded humanoid platforms, the vision model is optimized using NVIDIA TensorRT.
+* Conversion of trained detection models to TensorRT engines for low-latency inference
+* Stable real-time performance on Jetson Orin NX under on-board computational constraints
+
+### **3D Pose Estimation in Robot Frame**
 Detected objects are converted from image space into metric 3D positions:
 * Intrinsic-based pixel-to-ray projection
-* Class-dependent reference points (center / bottom-center of bounding box)
-* Transformation into the **base frame** using kinematic and sensor data
-
-### **IMU-Compensated Perception**
-To handle posture changes during walking:
-* Roll/Pitch angles from the onboard IMU are integrated into the camera-to-base transform
-* Reduces ground-plane projection error during dynamic motion
-* Improves stability of ball and landmark localization while walking
+* Transformation into the base frame using IMU-compensated kinematic data
 
 ---
 
