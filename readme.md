@@ -7,7 +7,7 @@
 [![C++](https://img.shields.io/badge/C++-17-00599C.svg?style=for-the-badge&logo=c%2B%2B&logoColor=white)](https://en.cppreference.com/w/cpp/17)
 [![License](https://img.shields.io/badge/License-Apache_2.0-yellow.svg?style=for-the-badge)](LICENSE)
 
-• robust Detection • real-time inference • 3D position estimation
+*robust Detection • real-time inference • 3D position estimation*
 
 ---
 </div>
