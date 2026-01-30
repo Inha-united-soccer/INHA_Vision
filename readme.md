@@ -48,7 +48,6 @@ Detected objects are converted from image space into metric 3D positions:
 
 ---
 
-* TensorRT 
 ## System Architecture
 
 The detailed system architecture is illustrated in the figure below.
