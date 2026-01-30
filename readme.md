@@ -50,6 +50,6 @@ The detailed system architecture is illustrated in the figure below.
 ---
 
 <div align="center">
-    <b>Built with by INHA United</b><br>
+    <b>Built by INHA United</b><br>
     <i>Pushing the boundaries of Autonomous Soccer</i>
 </div>
