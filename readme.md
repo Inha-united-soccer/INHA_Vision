@@ -31,7 +31,6 @@ We employ a YOLOv8-based detector optimized for embedded platforms.
 | Method      | Precision | Recall | mAP@50 | mAP@50–95 |
 |-------------|-----------|--------|--------|-----------|
 | Baseline    | 0.953     | 0.916  | 0.964  | 0.687     |
-|-------------|-----------|--------|--------|-----------|
 | Ours        | 0.943     | 0.940  | 0.970  | 0.702     |
 
 
