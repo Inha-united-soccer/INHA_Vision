@@ -8,6 +8,7 @@
 [![License](https://img.shields.io/badge/License-Apache_2.0-yellow.svg?style=for-the-badge)](LICENSE)
 
 *robust Detection • real-time inference • 3D position estimation*
+
 **"To enable humanoid robots to perceive the game reliably, even while moving."**
 
 The **INHA Vision** is designed as a visual perception module to enable stable recognition even during movement. It reliably detects and tracks balls, robots, goalposts, and field markers(L, T, X) in dynamic environments with varying lighting conditions.
