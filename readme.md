@@ -50,7 +50,8 @@ Detected objects are converted from image space into metric 3D positions:
 
 The detailed system architecture is illustrated in the figure below.
 <p align="center">
-  <img src="images/vision_pipeline.png" width="800"/>
+  <img width="800" alt="Screenshot 2026-01-31 at 14 39 41" src="https://github.com/user-attachments/assets/61f1056c-f35c-4e42-83f9-c5e1bd8de484" />
+
 </p>
 
 ---
