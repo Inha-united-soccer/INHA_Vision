@@ -18,8 +18,7 @@ if (ENABLE_ONNX)
   add_definitions(-DENABLE_ONNX)
 endif()
 
-add_library(yolov8_model SHARED detector.cc
-                                segmentor.cc)
+add_library(yolov8_model SHARED detector.cc)
 
 target_link_libraries(yolov8_model PUBLIC yolov8_trt
                                             $<$<BOOL:${ENABLE_ONNX}>:yolov8_onnx>
