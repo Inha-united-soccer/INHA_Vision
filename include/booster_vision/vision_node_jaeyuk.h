@@ -12,7 +12,6 @@
 #include <geometry_msgs/msg/pose.hpp>
 #include "vision_interface/msg/detections.hpp"
 
-#include "vision_interface/msg/line_segments.hpp"
 #include "vision_interface/msg/cal_param.hpp"
 #include "vision_interface/msg/ball.hpp"
 
@@ -34,7 +33,6 @@ class DataLogger;
 class DataSyncer;
 class PoseEstimator;
 class YoloV8Detector;
-class YoloV8Segmentor;
 class SyncedDataBlock;
 
 class VisionNode : public rclcpp::Node {
@@ -46,11 +44,9 @@ public:
     void Init(const std::string &cfg_template_path, const std::string &cfg_path);
     void ColorCallback(const sensor_msgs::msg::Image::ConstSharedPtr &msg);
     void DepthCallback(const sensor_msgs::msg::Image::ConstSharedPtr &msg);
-    void PoseTFCallBack(const geometry_msgs::msg::TransformStamped::SharedPtr msg);
     void PoseCallBack(const geometry_msgs::msg::Pose::SharedPtr msg);
     void CalParamCallback(const vision_interface::msg::CalParam::SharedPtr msg);
     void ProcessData(SyncedDataBlock &synced_data, vision_interface::msg::Detections &detections);
-    void ProcessSegmentationData(SyncedDataBlock &synced_data, vision_interface::msg::LineSegments &field_line_segs_msg);
     // 승재욱 추가 
     void lowStateCallback(const booster_interface::msg::LowState &msg);
     void RunImageProcessingLoop(); // 이미지 받은 것 여기서 처리
@@ -58,12 +54,9 @@ public:
 private:
     bool use_depth_ = false;
     bool show_det_ = false;
-    bool show_seg_ = false;
     bool save_data_ = false;
     bool save_depth_ = false;
-    bool offline_mode_ = false;
     std::string detection_model_path;
-    std::string segmentation_model_path;
     // 승재욱 추가
     bool use_imu_ = false;
 
@@ -78,7 +71,6 @@ private:
     Pose p_headprime2head_;
     Pose p_previous_head2base_;
     float z_compensation_ = 0;
-    int line_segment_area_threshold_ = 10; // threshold for line segment detection
 
     // post processing
     bool enable_post_process_ = false;
@@ -89,7 +81,6 @@ private:
 
 
     rclcpp::Publisher<vision_interface::msg::Detections>::SharedPtr detection_pub_;
-    rclcpp::Publisher<vision_interface::msg::LineSegments>::SharedPtr field_line_pub_;
     rclcpp::Publisher<vision_interface::msg::Ball>::SharedPtr ball_pub_;
 
 
@@ -115,7 +106,6 @@ private:
     std::shared_ptr<DataLogger> data_logger_;
     std::shared_ptr<DataSyncer> data_syncer_;
     std::shared_ptr<YoloV8Detector> detector_;
-    std::shared_ptr<YoloV8Segmentor> segmentor_;
     std::shared_ptr<PoseEstimator> pose_estimator_;
     std::map<std::string, std::shared_ptr<PoseEstimator>> pose_estimator_map_;
 

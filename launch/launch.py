@@ -20,13 +20,10 @@ def handle_configuration(context, *args, **kwargs):
     config_local_file = os.path.join(config_path, 'vision_local.yaml')
 
     show_det = LaunchConfiguration('show_det')
-    show_seg = LaunchConfiguration('show_seg')
     save_data = LaunchConfiguration('save_data')
     save_depth = LaunchConfiguration('save_depth')
-    offline_mode = LaunchConfiguration('offline_mode')
     save_fps = LaunchConfiguration('save_fps')
     detection_model_path = LaunchConfiguration('detection_model_path')
-    segmentation_model_path = LaunchConfiguration('segmentation_model_path')
     camera_type = LaunchConfiguration('camera_type')
 
     return [
@@ -37,14 +34,11 @@ def handle_configuration(context, *args, **kwargs):
             output='screen',
             arguments=[config_file, config_local_file],
             parameters=[{
-                'offline_mode': offline_mode,
                 'show_det': show_det,
-                'show_seg': show_seg,
                 'save_data': save_data,
                 'save_depth': save_depth,
                 'save_fps': save_fps,
                 'detection_model_path': detection_model_path,
-                'segmentation_model_path': segmentation_model_path,
                 'camera_type': camera_type
             }]
         ),
@@ -58,19 +52,9 @@ def generate_launch_description():
             description='Optional directory containing vision.yaml & vision_local.yaml (empty => use package default)'
         ),
         DeclareLaunchArgument(
-            "offline_mode",
-            default_value='false',
-            description="enable offline model"
-        ),
-        DeclareLaunchArgument(
             "show_det",
             default_value='false',
             description="Show detection result"
-        ),
-        DeclareLaunchArgument(
-            "show_seg",
-            default_value='false',
-            description="Show segmentation result"
         ),
         DeclareLaunchArgument(
             "save_data",
@@ -91,11 +75,6 @@ def generate_launch_description():
             'detection_model_path',
             default_value="",
             description="param to override detection_model.model_path. will not override if empty"
-        ),
-        DeclareLaunchArgument(
-            'segmentation_model_path',
-            default_value="model/best_seg_orin_10.3.engine",
-            description="param to override segmentation_model.model_path. will not override if empty"
         ),
         DeclareLaunchArgument(
             'camera_type',

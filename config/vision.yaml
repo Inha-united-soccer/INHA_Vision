@@ -51,11 +51,6 @@ detection_model:
       Opponent: 0.4
       BRMarker: 0.2
 
-segmentation_model:
-  model_path: ./src/vision/model/best_seg_orin_10.3.engine
-  confidence_threshold: 0.3
-  nms_threshold: 0.9
-
 use_depth: true
 use_imu: true # imu로 cartesian 좌표 보정할 지 
 

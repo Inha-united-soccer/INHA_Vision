@@ -18,7 +18,6 @@
 #include "booster_vision/base/data_logger.hpp"
 #include "booster_vision/base/misc_utils.hpp"
 #include "booster_vision/model//detector.h"
-#include "booster_vision/model//segmentor.h"
 #include "booster_vision/pose_estimator/pose_estimator.h"
 #include "booster_vision/img_bridge.h"
 
@@ -26,14 +25,11 @@ namespace booster_vision {
 
 VisionNode::VisionNode(const std::string &node_name) :
     rclcpp::Node(node_name) {
-    this->declare_parameter<bool>("offline_mode", false);
     this->declare_parameter<bool>("show_det", false);
-    this->declare_parameter<bool>("show_seg", false);
     this->declare_parameter<bool>("save_data", true);
     this->declare_parameter<bool>("save_depth", true);
     this->declare_parameter<int>("save_fps", 3);
     this->declare_parameter<std::string>("detection_model_path", "");
-    this->declare_parameter<std::string>("segmentation_model_path", "");
     this->declare_parameter<std::string>("camera_type", "");
 }
 // 승재욱 추가 -> 소멸자 생성 (안전한 thread 종료)
@@ -64,10 +60,8 @@ void VisionNode::Init(const std::string &cfg_template_path, const std::string &c
               << node << std::endl;
 
     this->get_parameter<bool>("show_det", show_det_);
-    this->get_parameter<bool>("show_seg", show_seg_);
     this->get_parameter<bool>("save_data", save_data_);
     this->get_parameter<bool>("save_depth", save_depth_);
-    this->get_parameter<bool>("offline_mode", offline_mode_);
     this->get_parameter<std::string>("camera_type", camera_type_);
     this->get_parameter<std::string>("detection_model_path", detection_model_path);
     std::cout << "detection_model_path origin: " << detection_model_path << std::endl;
@@ -82,31 +76,15 @@ void VisionNode::Init(const std::string &cfg_template_path, const std::string &c
         }
     }
 
-
-    this->get_parameter<std::string>("segmentation_model_path", segmentation_model_path);
-    std::cout << "segmentation_model_path origin: " << segmentation_model_path << std::endl;
-
-    if(!segmentation_model_path.empty()){
-        if(segmentation_model_path[0] == '/') {
-            // absolute path, do nothing
-        } else {
-            std::string package_path = ament_index_cpp::get_package_share_directory("vision");
-            segmentation_model_path = std::filesystem::path(package_path) / segmentation_model_path;
-        }
-    }
-    
     int save_fps = 0;
     this->get_parameter<int>("save_fps", save_fps);
     save_depth_ = save_depth_ && save_data_;
-    std::cout << "offline_mode: " << offline_mode_ << std::endl;
     std::cout << "show_det: " << show_det_ << std::endl;
-    std::cout << "show_seg: " << show_seg_ << std::endl;
     std::cout << "save_data: " << save_data_ << std::endl;
     std::cout << "save_depth: " << save_depth_ << std::endl;
     std::cout << "save_fps: " << save_fps << std::endl;
     std::cout << "camera_type: " << camera_type_ << std::endl;
     std::cout << "detection_model_path: " << detection_model_path << std::endl;
-    std::cout << "segmentation_model_path: " << segmentation_model_path << std::endl;
     save_every_n_frame_ = std::max(1, save_fps > 0 ? 30 / save_fps : 1); // 저장 주기
     std::cout << "save_every_n_frame: " << save_every_n_frame_ << std::endl;
 
@@ -165,15 +143,6 @@ void VisionNode::Init(const std::string &cfg_template_path, const std::string &c
         }
     }
 
-    if (!node["segmentation_model"]) {
-        std::cerr << "no segmentation model param found" << std::endl;
-    } 
-    else {
-        segmentor_ = YoloV8Segmentor::CreateYoloV8Segmentor(node["segmentation_model"], segmentation_model_path);
-    }
-
-    // add detector_ warmup
-
     // init data_syncer
     // 로그 관련 
     use_depth_ = as_or<bool>(node["use_depth"], false); // 현재는 true
@@ -201,37 +170,21 @@ void VisionNode::Init(const std::string &cfg_template_path, const std::string &c
     if (node["field_marker_pose_estimator"]) {
         pose_estimator_map_["field_marker"] = std::make_shared<FieldMarkerPoseEstimator>(intr_);
         pose_estimator_map_["field_marker"]->Init(node["field_marker_pose_estimator"]);
-
-        line_segment_area_threshold_ = as_or<int>(node["field_marker_pose_estimator"]["line_segment_area_threshold"], 75);
     }
 
 
     std::cout << "current camera_type : " << camera_type_ << std::endl;
     std::string color_topic;
     std::string depth_topic;
-    if (camera_type_.find("zed") != std::string::npos) {
-        color_topic = "/zed/zed_node/left/image_rect_color";
-        depth_topic = "/zed/zed_node/depth/depth_registered";
+
+    if (camera_type_ == "d-robotics") {
+        color_topic = "/StereoNetNode/rectified_image";
+        depth_topic = "/StereoNetNode/stereonet_depth";
     } 
-    else if (camera_type_ == "d-robotics") {
-        color_topic = "/booster_camera_bridge/StereoNetNode/rectified_image";
-        depth_topic = "/booster_camera_bridge/StereoNetNode/stereonet_depth";
-    } 
-    else if (camera_type_ == "orbbec") {
-        color_topic = "/camera/color/image_raw";
-        depth_topic = "/camera/depth/image_raw";
-    } 
-    else {
-        // realsense
-        color_topic = "/camera/camera/color/image_raw";
-        depth_topic = "/camera/camera/aligned_depth_to_color/image_raw";
-    }
 
     // 승재욱 추가 -> (Best Effort, Volatile) 사용 // 이렇게 해야 큐가 막히지 않고, 네트워크 지연 시 패킷을 과감히 버려서 최신성을 유지
-    // rclcpp::QoS img_qos = rclcpp::SensorDataQoS();
-    rclcpp::QoS img_qos(rclcpp::KeepLast(1));
-    img_qos.reliable();
-    img_qos.transient_local();
+    rclcpp::QoS img_qos = rclcpp::SensorDataQoS();
+
 
     // Callback group 4개 생성 (MutuallyExclusive)
     // ROS2 executor에서 콜백을 병렬로 돌릴 때 같은 그룹 내에서는 동시에 실행 안 됨 / 그룹이 다르면 병렬 가능
@@ -259,25 +212,14 @@ void VisionNode::Init(const std::string &cfg_template_path, const std::string &c
     }
 
     detection_pub_ = this->create_publisher<vision_interface::msg::Detections>("/booster_vision/detection", rclcpp::QoS(1));
-
-    if (node["segmentation_model"]) {
-        std::cout << "create sub for segmentor" << std::endl;
-        field_line_pub_ = this->create_publisher<vision_interface::msg::LineSegments>("/booster_vision/line_segments", rclcpp::QoS(1));
-    }
-
     ball_pub_ = this->create_publisher<vision_interface::msg::Ball>("/booster_vision/ball", rclcpp::QoS(1));
+    
+    pose_sub_ = this->create_subscription<geometry_msgs::msg::Pose>("/head_pose", 10, std::bind(&VisionNode::PoseCallBack, this, std::placeholders::_1), sub_opt_3);
+    calParam_sub_ = this->create_subscription<vision_interface::msg::CalParam>("/booster_vision/cal_param", 10, std::bind(&VisionNode::CalParamCallback, this, std::placeholders::_1));
+    pose_tf_pub_ = this->create_publisher<geometry_msgs::msg::TransformStamped>("/booster_vision/t_head2base", rclcpp::QoS(10));
 
-    if (offline_mode_) {
-        pose_tf_sub_ = this->create_subscription<geometry_msgs::msg::TransformStamped>("/booster_vision/t_head2base", 10, std::bind(&VisionNode::PoseTFCallBack, this, std::placeholders::_1));
-    } 
-    else {
-        pose_sub_ = this->create_subscription<geometry_msgs::msg::Pose>("/head_pose", 10, std::bind(&VisionNode::PoseCallBack, this, std::placeholders::_1), sub_opt_3);
-        calParam_sub_ = this->create_subscription<vision_interface::msg::CalParam>("/booster_vision/cal_param", 10, std::bind(&VisionNode::CalParamCallback, this, std::placeholders::_1));
-        pose_tf_pub_ = this->create_publisher<geometry_msgs::msg::TransformStamped>("/booster_vision/t_head2base", rclcpp::QoS(10));
-
-        // 승재욱 추가 
-        imu_sub_ = this->create_subscription<booster_interface::msg::LowState>("/low_state", 10, std::bind(&VisionNode::lowStateCallback, this, std::placeholders::_1), sub_opt_4);
-    }
+    // 승재욱 추가 
+    imu_sub_ = this->create_subscription<booster_interface::msg::LowState>("/low_state", 10, std::bind(&VisionNode::lowStateCallback, this, std::placeholders::_1), sub_opt_4);
 
     // 승재욱 추가 -> thread 실행
     is_running_ = true;
@@ -565,67 +507,11 @@ void VisionNode::RunImageProcessingLoop(){
         detection_msg.header = current_msg->header;
         ProcessData(synced_data, detection_msg);
 
-        // 5. Segmentation 수행 (같은 synced_data 재활용)
-        if (segmentor_) {
-            vision_interface::msg::LineSegments field_line_segs_msg;
-            field_line_segs_msg.header = current_msg->header;
-            ProcessSegmentationData(synced_data, field_line_segs_msg);
-        }
-
         // auto end = std::chrono::steady_clock::now();
         // std::cout << "Processing Time: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
     }
 }
 
-void VisionNode::ProcessSegmentationData(SyncedDataBlock &synced_data, vision_interface::msg::LineSegments &field_line_segs_msg) {
-    double timestamp = synced_data.color_data.timestamp;
-    cv::Mat color = synced_data.color_data.data;
-    Pose p_head2base = synced_data.pose_data.data;
-    Pose p_eye2base = p_head2base * p_headprime2head_ * p_eye2head_;
-
-    double time_diff = (timestamp - synced_data.pose_data.timestamp) * 1000;
-    if (time_diff > 40) {
-        std::cerr << "seg: color pose time diff: " << time_diff << " ms" << std::endl;
-    }
-    std::cout << "seg: p_eye2base: \n"
-              << p_eye2base.toCVMat() << std::endl;
-
-    // inference
-    auto segmentations = segmentor_->Inference(color);
-    std::vector<FieldLineSegment> field_line_segs;
-    for (auto &seg : segmentations) {
-        // TODO: fit circle line
-        if (seg.class_id == 0) continue;
-        auto line_segs = FitFieldLineSegments(p_eye2base, intr_, seg.contour, line_segment_area_threshold_); // seg.contour : 마스크 외곽선(2D 픽셀 점들의 집합)
-        for (auto line_seg : line_segs) {
-            float inlier_precentage = static_cast<float>(line_seg.inlier_count) / line_seg.contour_2d_points.size();
-            if (inlier_precentage < 0.25) {
-                continue;
-            }
-            field_line_segs_msg.coordinates.push_back(line_seg.end_points_3d[0].x);
-            field_line_segs_msg.coordinates.push_back(line_seg.end_points_3d[0].y);
-            field_line_segs_msg.coordinates.push_back(line_seg.end_points_3d[1].x);
-            field_line_segs_msg.coordinates.push_back(line_seg.end_points_3d[1].y);
-
-            field_line_segs_msg.coordinates_uv.push_back(line_seg.end_points_2d[0].x);
-            field_line_segs_msg.coordinates_uv.push_back(line_seg.end_points_2d[0].y);
-            field_line_segs_msg.coordinates_uv.push_back(line_seg.end_points_2d[1].x);
-            field_line_segs_msg.coordinates_uv.push_back(line_seg.end_points_2d[1].y);
-
-            field_line_segs.push_back(line_seg);
-        }
-    }
-    std::cout << segmentations.size() << " objects segmented." << std::endl;
-
-    field_line_pub_->publish(field_line_segs_msg);
-    
-    if (show_seg_) {
-        cv::Mat img_out = YoloV8Segmentor::DrawSegmentation(color, segmentations);
-        img_out = DrawFieldLineSegments(img_out, field_line_segs);
-        cv::imshow("Segmentation", img_out);
-        cv::waitKey(1);
-    }
-}
 
 void VisionNode::DepthCallback(const sensor_msgs::msg::Image::ConstSharedPtr &msg) {
     std::cout << "new depth received" << std::endl;
@@ -656,11 +542,6 @@ void VisionNode::DepthCallback(const sensor_msgs::msg::Image::ConstSharedPtr &ms
     data_syncer_->AddDepth(DepthDataBlock(img, timestamp));
 }
 
-void VisionNode::PoseTFCallBack(const geometry_msgs::msg::TransformStamped::SharedPtr msg) {
-    double timestamp = msg->header.stamp.sec + static_cast<double>(msg->header.stamp.nanosec) * 1e-9;
-    data_syncer_->AddPose(PoseDataBlock(Pose(*msg), timestamp));
-}
-
 void VisionNode::PoseCallBack(const geometry_msgs::msg::Pose::SharedPtr msg) {
     auto current_time = this->get_clock()->now();
     double timestamp = static_cast<double>(current_time.nanoseconds()) * 1e-9;
@@ -675,12 +556,10 @@ void VisionNode::PoseCallBack(const geometry_msgs::msg::Pose::SharedPtr msg) {
     auto pose = Pose(x, y, z, qx, qy, qz, qw);
     data_syncer_->AddPose(PoseDataBlock(pose, timestamp));
 
-    if (!offline_mode_) {
-        auto tf_msg = pose.toRosTFMsg();
-        tf_msg.header.stamp = builtin_interfaces::msg::Time(current_time);
+    auto tf_msg = pose.toRosTFMsg();
+    tf_msg.header.stamp = builtin_interfaces::msg::Time(current_time);
 
-        pose_tf_pub_->publish(tf_msg);
-    }
+    pose_tf_pub_->publish(tf_msg);
 }
 
 void VisionNode::CalParamCallback(const vision_interface::msg::CalParam::SharedPtr msg) {

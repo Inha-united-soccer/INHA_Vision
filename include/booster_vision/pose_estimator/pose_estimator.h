@@ -94,10 +94,4 @@ struct FieldLineSegment {
     double area;
 };
 
-std::vector<FieldLineSegment> FitFieldLineSegments(const Pose &p_eye2base,
-                                                   const Intrinsics &intr,
-                                                   const std::vector<std::vector<cv::Point>> &contours,
-                                                   const int &line_segment_area_threshold);
-cv::Mat DrawFieldLineSegments(cv::Mat &img, const std::vector<FieldLineSegment> &segs);
-
 } // namespace booster_vision
