@@ -88,6 +88,7 @@ cv::Point3f Intrinsics::BackProject(const cv::Point2f &point, float depth) const
         xyz = cv::Point3f(undistort_points[0].x, undistort_points[0].y, 1) * depth;
         break;
     }
+    // realsense 카메라 모델
     case DistortionModel::kInverseBrownConrady: {
         float x = (point.x - cx) / fx;
         float y = (point.y - cy) / fy;

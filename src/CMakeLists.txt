@@ -2,6 +2,10 @@ add_subdirectory(base)
 add_subdirectory(model)
 add_subdirectory(pose_estimator)
 
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
+  add_subdirectory(calibration)
+endif()
+
 set(BOOSTER_ROBOTICS_SDK_DEPENDENCIES booster_robotics_sdk.a fastrtps fastcdr)
 
 add_executable(vision_node main.cpp 

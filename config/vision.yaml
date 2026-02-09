@@ -71,6 +71,7 @@ human_like_pose_estimator:
   statistic_outlier_multiplier: 0.01
 
 field_marker_pose_estimator:
+  use_depth: true
   refine: false
   line_segment_area_threshold: 75
   

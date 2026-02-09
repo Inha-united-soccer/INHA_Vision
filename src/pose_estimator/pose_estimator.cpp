@@ -72,7 +72,7 @@ void BallPoseEstimator::Init(const YAML::Node &node) {
 Pose BallPoseEstimator::EstimateByColor(const Pose &p_eye2base, const DetectionRes &detection, const cv::Mat &rgb) {
     // TODO(GW): add modification for cross class
     auto bbox = detection.bbox;
-    cv::Point2f target_uv = cv::Point2f(bbox.x + bbox.width / 2, bbox.y + bbox.height);
+    cv::Point2f target_uv = cv::Point2f(bbox.x + bbox.width / 2, bbox.y + bbox.height); // 하단 중앙
     cv::Point3f target_xyz = CalculatePositionByIntersection(p_eye2base, target_uv, intr_);
     return Pose(target_xyz.x, target_xyz.y, target_xyz.z, 0, 0, 0);
 }
@@ -128,7 +128,8 @@ void HumanLikePoseEstimator::Init(const YAML::Node &node) {
 
 Pose HumanLikePoseEstimator::EstimateByColor(const Pose &p_eye2base, const DetectionRes &detection, const cv::Mat &rgb) {
     auto bbox = detection.bbox;
-    cv::Point2f target_uv = cv::Point2f(bbox.x + bbox.width / 2, bbox.y + bbox.height);
+    // bbox 아래 중심 좌표를 사용 
+    cv::Point2f target_uv = cv::Point2f(bbox.x + bbox.width / 2, bbox.y + bbox.height); // 하단 중앙
     cv::Point3f target_xyz = CalculatePositionByIntersection(p_eye2base, target_uv, intr_);
     return Pose(target_xyz.x, target_xyz.y, target_xyz.z, 0, 0, 0);
 }
@@ -137,27 +138,29 @@ Pose HumanLikePoseEstimator::EstimateByDepth(const Pose &p_eye2base, const Detec
     if (!use_depth_ || depth.empty()) return Pose();
 
     auto pose = EstimateByColor(p_eye2base, detection, cv::Mat());
-    if (pose.getTranslationVec()[0] > 3) return pose;
+    if (pose.getTranslationVec()[0] > 3) return pose; // 만약 추정된 거리(X축 방향으로 추측됨)가 3미터보다 멀다면, depth 부정확하여 color만 사용 
 
+    // 데이터를 연산 가능한 3D 점 집합(Point Cloud)으로 변환하고 노이즈를 제거
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
-    CreatePointCloud(cloud, depth, rgb, detection.bbox, intr_);
-    if (cloud->points.size() < 100) return pose;
+    CreatePointCloud(cloud, depth, rgb, detection.bbox, intr_); // 2D 바운딩 박스(detection.bbox) 영역 내의 깊이 값을 3D 좌표로 변환하여 cloud에 저장
+    if (cloud->points.size() < 100) return pose; // 점이 100개 미만이면 신뢰할 수 없음 -> 그냥 color 사용 
 
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr downsampled_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
-    DownSamplePointCloud(downsampled_cloud, downsample_leaf_size_, cloud);
+    DownSamplePointCloud(downsampled_cloud, downsample_leaf_size_, cloud); // 연산 속도를 줄이기 위한 다운샘플링
     if (downsampled_cloud->points.size() < 100) return pose;
 
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr processed_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
-    PointCloudNoiseRemoval(processed_cloud, 50, statistic_outlier_multiplier_, downsampled_cloud);
+    PointCloudNoiseRemoval(processed_cloud, 50, statistic_outlier_multiplier_, downsampled_cloud); // 통계적 아웃라이어 제거 기법을 사용하여 튀는 점들을 삭제
     if (processed_cloud->points.size() < 100) return pose;
 
     std::vector<float> plane_coeffs;
     float confidence;
-    PlaneFitting(plane_coeffs, confidence, processed_cloud, fitting_distance_threshold_);
+    PlaneFitting(plane_coeffs, confidence, processed_cloud, fitting_distance_threshold_); // 3D 점들에 가장 잘 맞는 평면 방정식을 계산
 
     // TODO(GW): add plane fitting res check
 
     // compute plane ray intersection
+    // 객체의 정확한 3D 위치를 찾기 위해 카메라 중심에서 객체 중심(UV)을 지나는 광선이 방금 구한 평면과 만나는 지점을 찾음
     auto bbox = detection.bbox;
     cv::Point2f target_uv = cv::Point2f(bbox.x + bbox.width / 2, bbox.y + bbox.height / 2);
     cv::Point3f normalized_point3d = intr_.BackProject(target_uv);
@@ -174,6 +177,7 @@ Pose HumanLikePoseEstimator::EstimateByDepth(const Pose &p_eye2base, const Detec
 
 // ------------------------------- Marker Pose ------------------------------
 void FieldMarkerPoseEstimator::Init(const YAML::Node &node) {
+    use_depth_ = as_or<bool>(node["use_depth"], false);
     refine_ = as_or<bool>(node["refine"], false);
 }
 
@@ -521,6 +525,12 @@ void FitLineRANSAC(std::vector<cv::Point3f> &best_line, unsigned int &best_inlie
         }
     }
     best_accu_distance /= n;
+}
+
+// 재욱 추가 -> depth로 지면 추정해서 마커 projection 보정
+Pose FieldMarkerPoseEstimator::EstimateByDepth(const Pose &p_eye2base, const DetectionRes &detection, const cv::Mat &rgb, const cv::Mat &depth) {
+    if (!use_depth_ || depth.empty()) return Pose();
+
 }
 
 

@@ -76,6 +76,7 @@ public:
 
     void Init(const YAML::Node &node) override;
     Pose EstimateByColor(const Pose &p_eye2base, const DetectionRes &detection, const cv::Mat &rgb) override;
+    Pose EstimateByDepth(const Pose &p_eye2base, const DetectionRes &detection, const cv::Mat &rgb, const cv::Mat &depth) override;
 
 private:
     bool refine_;
@@ -83,15 +84,5 @@ private:
 
 cv::Point3f CalculatePositionByIntersection(const Pose &p_eye2base, const cv::Point2f target_uv, const Intrinsics &intr);
 
-struct FieldLineSegment {
-    std::vector<cv::Point> contour_2d_points;
-    std::vector<cv::Point3f> contour_3d_points;
-    std::vector<cv::Point3f> line_model;
-    std::vector<cv::Point2f> end_points_2d;
-    std::vector<cv::Point3f> end_points_3d;
-    unsigned int inlier_count;
-    float accu_distance;
-    double area;
-};
 
 } // namespace booster_vision

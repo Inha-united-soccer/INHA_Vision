@@ -512,7 +512,6 @@ void VisionNode::RunImageProcessingLoop(){
     }
 }
 
-
 void VisionNode::DepthCallback(const sensor_msgs::msg::Image::ConstSharedPtr &msg) {
     std::cout << "new depth received" << std::endl;
     // cv_bridge::CvImagePtr cv_ptr;
