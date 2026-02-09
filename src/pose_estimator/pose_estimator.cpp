@@ -528,10 +528,10 @@ void FitLineRANSAC(std::vector<cv::Point3f> &best_line, unsigned int &best_inlie
 }
 
 // 재욱 추가 -> depth로 지면 추정해서 마커 projection 보정
-Pose FieldMarkerPoseEstimator::EstimateByDepth(const Pose &p_eye2base, const DetectionRes &detection, const cv::Mat &rgb, const cv::Mat &depth) {
-    if (!use_depth_ || depth.empty()) return Pose();
+// Pose FieldMarkerPoseEstimator::EstimateByDepth(const Pose &p_eye2base, const DetectionRes &detection, const cv::Mat &rgb, const cv::Mat &depth) {
+//     if (!use_depth_ || depth.empty()) return Pose();
 
-}
+// }
 
 
 } // namespace booster_vision
