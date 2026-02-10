@@ -299,10 +299,20 @@ void IntrinsicCalibration(
     const cv::Size &image_size) {
     // 초기화
     cv::Mat K = cv::Mat::eye(3, 3, CV_64F);
+    K.at<double>(0,0) = 216.409073;
+    K.at<double>(1,1) = 216.409073;
+    K.at<double>(0,2) = 294.719971;
+    K.at<double>(1,2) = 234.203354;
     cv::Mat D = cv::Mat::zeros(8, 1, CV_64F);
 
     std::vector<cv::Mat> rvecs, tvecs;
     int flags = 0;
+    flags |= cv::CALIB_USE_INTRINSIC_GUESS; // sdk의 info를 초기값으로 사용
+    flags |= cv::CALIB_ZERO_TANGENT_DIST; // 접선 왜곡 계수 p1, p2를 0으로 고정
+    flags |= cv::CALIB_FIX_K3; // 고차원 왜곡 계수 고정
+    flags |= cv::CALIB_FIX_K4;
+    flags |= cv::CALIB_FIX_K5;
+    flags |= cv::CALIB_FIX_K6;
     
     // calibration
     double rms = cv::calibrateCamera(all_corners_3d,all_corners_2d,

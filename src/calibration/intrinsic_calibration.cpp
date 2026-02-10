@@ -36,7 +36,7 @@ public:
     IntrinsicCalibrationNode(const std::string &node_name);
     ~IntrinsicCalibrationNode() = default;
 
-    void Init(bool offline_mode = false);
+    void Init(bool offline_mode = false, std::string color_topic="");
     void ColorCallback(const sensor_msgs::msg::Image::ConstSharedPtr &msg);
     void RunIntrinsicCalibrationProcess(const SyncedDataBlock &data_block);
 
@@ -62,7 +62,6 @@ private:
     std::vector<SyncedDataBlock> cali_data_;
 
     std::shared_ptr<IntrinsicBoardDetector> board_detector_;
-    std::vector<std::vector<MarkerCoordinates>> marker_coords_vec_;
 
     // for display
     cv::Mat board_position_mask_;
