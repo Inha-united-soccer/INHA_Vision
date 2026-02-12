@@ -24,6 +24,8 @@ add_executable(calibration_node calibration_node.cpp
 # 승재욱 추가
 add_executable(intrinsic_calibration_node intrinsic_calibration.cpp
                                       ../img_bridge.cpp)
+add_executable(stereo_extrinsic_calibration_node stereo_extrinsic_calibration.cpp
+                                      ../img_bridge.cpp)
 
 target_link_libraries(calibration_node booster_vision_base
                                        booster_vision_pose_estimator
@@ -38,6 +40,13 @@ target_link_libraries(intrinsic_calibration_node booster_vision_base
                                                  booster_vision_calibration
                                                  ${typesupport_target}
                                                  )
+
+target_link_libraries(stereo_extrinsic_calibration_node booster_vision_base
+                                                        booster_vision_pose_estimator
+                                                        yolov8_model
+                                                        booster_vision_calibration
+                                                        ${typesupport_target}
+                                                        )
 
 ament_target_dependencies(calibration_node
   rclcpp
@@ -56,6 +65,13 @@ ament_target_dependencies(intrinsic_calibration_node
   image_transport
   builtin_interfaces
 )
+ament_target_dependencies(stereo_extrinsic_calibration_node
+  rclcpp
+  std_msgs
+  sensor_msgs
+  image_transport
+  builtin_interfaces
+)
 
 install(TARGETS calibration_node
   DESTINATION lib/${PROJECT_NAME})
@@ -64,5 +80,8 @@ install(TARGETS calibration_node
 install(TARGETS intrinsic_calibration_node
   DESTINATION lib/${PROJECT_NAME})
   
+install(TARGETS stereo_extrinsic_calibration_node
+  DESTINATION lib/${PROJECT_NAME})
+
 install(TARGETS booster_vision_calibration
         DESTINATION lib)

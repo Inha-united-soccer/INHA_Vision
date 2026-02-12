@@ -11,7 +11,8 @@ set(BOOSTER_ROBOTICS_SDK_DEPENDENCIES booster_robotics_sdk.a fastrtps fastcdr)
 add_executable(vision_node main.cpp 
                            img_bridge.cpp
                            vision_node.cpp)
-
+# 승재욱 추가
+add_executable(stereo_vision_node stereo_vision.cpp)
 
 target_link_libraries(vision_node ${BOOSTER_ROBOTICS_SDK_DEPENDENCIES}
                                      booster_vision_base
@@ -33,8 +34,31 @@ ament_target_dependencies(vision_node
   booster_interface
 )
 
+# 승재욱 추가
+target_link_libraries(stereo_vision_node
+    ${BOOSTER_ROBOTICS_SDK_DEPENDENCIES}
+    booster_vision_base
+    booster_vision_pose_estimator
+    yolov8_model
+    ${typesupport_target}
+)
+
+ament_target_dependencies(stereo_vision_node
+    rclcpp
+    std_msgs
+    sensor_msgs
+    geometry_msgs
+    image_transport
+    tf2
+    builtin_interfaces
+    vision_interface
+    # 승재욱 추가
+    booster_interface
+)
 
 install(TARGETS vision_node 
   DESTINATION lib/${PROJECT_NAME})
 
-
+# 승재욱 추가
+install(TARGETS stereo_vision_node
+    DESTINATION lib/${PROJECT_NAME})
