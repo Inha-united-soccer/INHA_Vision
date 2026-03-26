@@ -26,3 +26,13 @@ target_link_libraries(yolov8_model PUBLIC yolov8_trt
 target_compile_options(yolov8_model PRIVATE -w)
 
 install(TARGETS yolov8_model DESTINATION lib)
+
+# 승재욱 추가
+add_library(disparity_model SHARED disparity_estimator.cc)
+
+target_link_libraries(disparity_model PUBLIC yolov8_trt
+                                              ${YAML_CPP_LIBRARIES})
+
+target_compile_options(disparity_model PRIVATE -w)
+
+install(TARGETS disparity_model DESTINATION lib)

@@ -18,6 +18,7 @@ find_package(builtin_interfaces REQUIRED)
 find_package(vision_interface REQUIRED)
 # 승재욱 추가
 find_package(booster_interface REQUIRED)
+find_package(cv_bridge REQUIRED)
 
 find_package(OpenCV 4.5 REQUIRED)
 find_package(YAML-CPP REQUIRED)

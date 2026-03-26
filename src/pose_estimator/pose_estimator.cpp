@@ -44,7 +44,6 @@ cv::Point3f CalculatePositionByIntersection(const Pose &p_eye2base, const cv::Po
 }
 
 Pose PoseEstimator::EstimateByColor(const Pose &p_eye2base, const DetectionRes &detection, const cv::Mat &rgb) {
-    // TODO(GW): add modification for cross class
     auto bbox = detection.bbox;
     cv::Point2f target_uv = cv::Point2f(bbox.x + bbox.width / 2, bbox.y + bbox.height / 2); // 바운딩 박스 중앙 
     cv::Point3f target_xyz = CalculatePositionByIntersection(p_eye2base, target_uv, intr_); // base 3D로 변환
@@ -54,7 +53,6 @@ Pose PoseEstimator::EstimateByColor(const Pose &p_eye2base, const DetectionRes &
 Pose PoseEstimator::EstimateByDepth(const Pose &p_eye2base, const DetectionRes &detection, const cv::Mat &rgb, const cv::Mat &depth) {
     return Pose();
 }
-
 
 // ------------------------------- Ball Pose ------------------------------
 void BallPoseEstimator::Init(const YAML::Node &node) {
@@ -81,16 +79,18 @@ Pose BallPoseEstimator::EstimateByDepth(const Pose &p_eye2base, const DetectionR
     if (!use_depth_ || depth.empty()) return Pose();
 
     auto pose = EstimateByColor(p_eye2base, detection, cv::Mat());
+    // 카메라 기준 공까지의 거리가 filter_distance_보다 멀면, depth 부정확하다고 판단하여 color 기반 추정 결과 사용
     if (cv::norm(pose.getTranslationVec()) > filter_distance_) return pose;
     std::cout << "ball distance by color: " << cv::norm(pose.getTranslationVec()) << std::endl;
 
+    // 포인터 클라우드 객체 생성
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
-    CreatePointCloud(cloud, depth, rgb, detection.bbox, intr_);
+    CreatePointCloud(cloud, depth, rgb, detection.bbox, intr_); // cloud->points에는 바운딩 박스 영역 내의 3D 벡터와 RGB 정보가 들어있음
     if (cloud->points.size() < 100) return Pose();
 
     // 3D 공간을 작은 정육면체(voxel) 격자로 나누고, 각 격자 안의 점들을 하나의 대표 점으로 줄이는 과정
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr downsampled_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
-    DownSamplePointCloud(downsampled_cloud, downsample_leaf_size_, cloud); 
+    DownSamplePointCloud(downsampled_cloud, downsample_leaf_size_, cloud); // downsample_leaf_size_ 크기의 3D격자로 나누어 다운 샘플링
     if (downsampled_cloud->points.size() < 100) return Pose();
 
     std::vector<pcl::PointCloud<pcl::PointXYZRGB>::Ptr> clustered_clouds;
@@ -155,9 +155,9 @@ Pose HumanLikePoseEstimator::EstimateByDepth(const Pose &p_eye2base, const Detec
 
     std::vector<float> plane_coeffs;
     float confidence;
-    PlaneFitting(plane_coeffs, confidence, processed_cloud, fitting_distance_threshold_); // 3D 점들에 가장 잘 맞는 평면 방정식을 계산
-
-    // TODO(GW): add plane fitting res check
+    PlaneFitting(plane_coeffs, confidence, processed_cloud, fitting_distance_threshold_); 
+    // 3D 점들에 가장 잘 맞는 평면 방정식을 계산 -> 출력 : 평면 방정식 계수 (a,b,c,d) -> ax + by + cz + d = 0 
+    // (a,b,c)는 평면의 법선 벡터, d는 원점에서 평면까지의 거리 정보 포함
 
     // compute plane ray intersection
     // 객체의 정확한 3D 위치를 찾기 위해 카메라 중심에서 객체 중심(UV)을 지나는 광선이 방금 구한 평면과 만나는 지점을 찾음
@@ -526,12 +526,4 @@ void FitLineRANSAC(std::vector<cv::Point3f> &best_line, unsigned int &best_inlie
     }
     best_accu_distance /= n;
 }
-
-// 재욱 추가 -> depth로 지면 추정해서 마커 projection 보정
-// Pose FieldMarkerPoseEstimator::EstimateByDepth(const Pose &p_eye2base, const DetectionRes &detection, const cv::Mat &rgb, const cv::Mat &depth) {
-//     if (!use_depth_ || depth.empty()) return Pose();
-
-// }
-
-
 } // namespace booster_vision

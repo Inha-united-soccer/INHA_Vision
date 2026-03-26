@@ -17,6 +17,7 @@
     <depend>vision_interface</depend>
     <!-- 승재욱 추가 -->
      <depend>booster_interface</depend>
+     <depend>cv_bridge</depend>
 
     <depend>rosidl_default_generators</depend>
     <exec_depend>rosidl_default_runtime</exec_depend>

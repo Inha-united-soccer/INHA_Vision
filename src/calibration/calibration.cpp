@@ -299,25 +299,62 @@ void IntrinsicCalibration(
     const cv::Size &image_size) {
     // 초기화
     cv::Mat K = cv::Mat::eye(3, 3, CV_64F);
-    K.at<double>(0,0) = 216.409073;
-    K.at<double>(1,1) = 216.409073;
-    K.at<double>(0,2) = 294.719971;
-    K.at<double>(1,2) = 234.203354;
+    // K.at<double>(0,0) = 216.409073;
+    // K.at<double>(1,1) = 216.409073;
+    // K.at<double>(0,2) = 294.719971;
+    // K.at<double>(1,2) = 234.203354;
     cv::Mat D = cv::Mat::zeros(8, 1, CV_64F);
 
     std::vector<cv::Mat> rvecs, tvecs;
     int flags = 0;
-    flags |= cv::CALIB_USE_INTRINSIC_GUESS; // sdk의 info를 초기값으로 사용
-    flags |= cv::CALIB_ZERO_TANGENT_DIST; // 접선 왜곡 계수 p1, p2를 0으로 고정
-    flags |= cv::CALIB_FIX_K3; // 고차원 왜곡 계수 고정
-    flags |= cv::CALIB_FIX_K4;
-    flags |= cv::CALIB_FIX_K5;
-    flags |= cv::CALIB_FIX_K6;
+    // flags |= cv::CALIB_USE_INTRINSIC_GUESS; // sdk의 info를 초기값으로 사용
+    // flags |= cv::CALIB_ZERO_TANGENT_DIST; // 접선 왜곡 계수 p1, p2를 0으로 고정
+    // flags |= cv::CALIB_FIX_K3; // 고차원 왜곡 계수 고정
+    // flags |= cv::CALIB_FIX_K4;
+    // flags |= cv::CALIB_FIX_K5;
+    // flags |= cv::CALIB_FIX_K6;
     
     // calibration
     double rms = cv::calibrateCamera(all_corners_3d,all_corners_2d,
                                     image_size,
                                     K, D, rvecs, tvecs, flags);
+
+    double rms = cv::calibrateCamera(all_corners_3d, all_corners_2d,
+                                 image_size,
+                                 K, D, rvecs, tvecs, flags);
+
+    // ===== 이미지별로 reprojection error =====
+    std::cout << "\nPer-image Reprojection Errors:\n";
+    double total_error = 0.0;
+    int total_points = 0;
+
+    for (size_t i = 0; i < all_corners_3d.size(); ++i) {
+        std::vector<cv::Point2f> projected_points;
+
+        cv::projectPoints(
+            all_corners_3d[i],
+            rvecs[i],
+            tvecs[i],
+            K,
+            D,
+            projected_points
+        );
+
+        double err = cv::norm(all_corners_2d[i], projected_points, cv::NORM_L2);
+
+        int n = all_corners_3d[i].size();
+        double per_view_error = std::sqrt(err * err / n);
+
+        std::cout << "Image " << i
+                << " error: "
+                << per_view_error
+                << " px\n";
+        total_error += err * err;
+        total_points += n;
+    }
+    double overall_rms = std::sqrt(total_error / total_points);
+    std::cout << "Computed Overall RMS: " << overall_rms << " px\n";
+    // ===== 추가 끝 =====
                                     
     std::cout << "\n========== Intrinsic Calibration Result ==========\n";
 

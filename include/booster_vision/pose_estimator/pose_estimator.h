@@ -76,13 +76,11 @@ public:
 
     void Init(const YAML::Node &node) override;
     Pose EstimateByColor(const Pose &p_eye2base, const DetectionRes &detection, const cv::Mat &rgb) override;
-    // Pose EstimateByDepth(const Pose &p_eye2base, const DetectionRes &detection, const cv::Mat &rgb, const cv::Mat &depth) override;
 
 private:
     bool refine_;
 };
 
 cv::Point3f CalculatePositionByIntersection(const Pose &p_eye2base, const cv::Point2f target_uv, const Intrinsics &intr);
-
 
 } // namespace booster_vision

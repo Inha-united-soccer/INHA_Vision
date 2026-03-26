@@ -18,6 +18,7 @@ target_link_libraries(vision_node ${BOOSTER_ROBOTICS_SDK_DEPENDENCIES}
                                      booster_vision_base
                                      booster_vision_pose_estimator
                                      yolov8_model
+                                     disparity_model
                                      ${typesupport_target}
                                      )
 
@@ -32,6 +33,7 @@ ament_target_dependencies(vision_node
   vision_interface
   # 승재욱 추가
   booster_interface
+  cv_bridge
 )
 
 # 승재욱 추가

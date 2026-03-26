@@ -38,6 +38,14 @@ struct SyncedDataBlock {
             other.color_data.data.copyTo(color_data.data);
         }
 
+        // 승재욱 추가
+        color_right_data.timestamp = other.color_data.timestamp;
+        if(other.color_right_data.data.empty()){
+            color_right_data.data = cv::Mat();
+        } else {
+            other.color_right_data.data.copyTo(color_right_data.data);
+        }
+        
         depth_data.timestamp = other.depth_data.timestamp;
         if (other.depth_data.data.empty()) {
             depth_data.data = cv::Mat();
@@ -47,6 +55,8 @@ struct SyncedDataBlock {
     }
 
     ColorDataBlock color_data;
+    // 승재욱 추가
+    ColorDataBlock color_right_data;
     DepthDataBlock depth_data;
     PoseDataBlock pose_data;
 };

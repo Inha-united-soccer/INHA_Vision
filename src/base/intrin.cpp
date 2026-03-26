@@ -76,6 +76,7 @@ cv::Point3f Intrinsics::BackProject(const cv::Point2f &point, float depth) const
     switch (model) {
     // 카메라 원점에서 앞(z)으로 1만큼 간 평면 위의 점을 만들고, 그 방향으로 쭉 나가는 광선을 생각.
     case DistortionModel::kNone: { // depth 기본으로 1 
+        // depth 1은 그냥 단위 벡터이고 depth가 있을수록 해당 depth에 대한 벡터가 됨
         xyz.x = (point.x - cx) * depth / fx;
         xyz.y = (point.y - cy) * depth / fy;
         xyz.z = depth;

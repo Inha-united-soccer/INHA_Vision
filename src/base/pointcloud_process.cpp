@@ -99,7 +99,7 @@ void CreatePointCloud(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud, const cv::M
                       const booster_vision::Intrinsics &intrinsics) {
     for (int v = bbox.y; v < bbox.y + bbox.height; ++v) {
         for (int u = bbox.x; u < bbox.x + bbox.width; ++u) {
-            float depth = depth_image.at<float>(v, u);
+            float depth = depth_image.at<float>(v, u); // mat.at<T>(row, col)이므로 v먼저 
             if (!std::isnan(depth) && depth > 0) {
                 auto cv_point = intrinsics.BackProject(cv::Point2f(u, v), depth);
 
@@ -116,6 +116,7 @@ void CreatePointCloud(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud, const cv::M
     }
 }
 
+// bbox가 없을 때, 이미지 전체에서 포인트 클라우드 생성하는 함수
 void CreatePointCloud(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud, const cv::Mat &depth_image, const cv::Mat &rgb_image,
                       const booster_vision::Intrinsics &intrinsics) {
     cv::Rect bbox(0, 0, depth_image.cols, depth_image.rows);
@@ -126,7 +127,7 @@ void DownSamplePointCloud(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &processed_clou
                           const pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud) {
     pcl::VoxelGrid<pcl::PointXYZRGB> voxel_filter;
     voxel_filter.setInputCloud(cloud);
-    voxel_filter.setLeafSize(leaf_size, leaf_size, leaf_size); // Adjust leaf size as needed
+    voxel_filter.setLeafSize(leaf_size, leaf_size, leaf_size); // 현재는 1cm 격자로 다운샘플링
     voxel_filter.filter(*processed_cloud);
 }
 
@@ -142,16 +143,22 @@ void PointCloudNoiseRemoval(pcl::PointCloud<pcl::PointXYZRGB>::Ptr &processed_cl
 
 void ClusterPointCloud(std::vector<pcl::PointCloud<pcl::PointXYZRGB>::Ptr> &clustered_clouds, const pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud,
                        const float cluster_distance_threshold) {
+    // 빠른 최근접 이웃 탐색을 위한 KD-트리 객체 생성 -> O(log n) 시간에 최근접 이웃 탐색 가능
     pcl::search::KdTree<pcl::PointXYZRGB>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZRGB>);
-    pcl::EuclideanClusterExtraction<pcl::PointXYZRGB> ec;
+    pcl::EuclideanClusterExtraction<pcl::PointXYZRGB> ec; // 3D 기반 BFS 클러스터링 객체 생성
     ec.setInputCloud(cloud);
     ec.setClusterTolerance(cluster_distance_threshold); // Adjust tolerance as needed
-    ec.setMinClusterSize(100);                          // Minimum number of points per cluster
-    ec.setMaxClusterSize(125000);                       // Maximum number of points per cluster
+    ec.setMinClusterSize(100);                          // 최소 100점 이상이어야 클러스터로 인정
+    ec.setMaxClusterSize(125000);                       // 125000점 이상이면 클러스터로 인정하지 않음 (너무 큰 클러스터는 노이즈일 가능성 높음)
     ec.setSearchMethod(tree);
 
     std::vector<pcl::PointIndices> cluster_indices;
-    ec.extract(cluster_indices);
+    // cluster_indices = [
+    //   { indices: [0,5,10,33,...] },
+    //   { indices: [3,7,12,...] },
+    //   ...
+    // ]
+    ec.extract(cluster_indices); // 클러스터링 수행, 결과는 cluster_indices에 저장
 
     std::cout << "number of cluster: " << cluster_indices.size() << std::endl;
     // If no clusters found, return false
@@ -209,23 +216,24 @@ void SphereFitting(std::vector<float> &sphere, float &confidence, const pcl::Poi
 
 void PlaneFitting(std::vector<float> &plane, float &confidence,
                   const pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud, const float &dist_threshold) {
-    pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
-    pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
-    // Create the segmentation object
+    pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients); // 평면 방정식 저장
+    pcl::PointIndices::Ptr inliers(new pcl::PointIndices); // 평면에 속하는 점들의 인덱스
+    // RANSAC 세그멘테이션 객체 생성
     pcl::SACSegmentation<pcl::PointXYZRGB> seg;
     // Optional
+    // RANSAC 이후 inlier로 LSE 최적화 수행 여부
     seg.setOptimizeCoefficients(true);
     // Mandatory
-    seg.setModelType(pcl::SACMODEL_PLANE);
-    seg.setMethodType(pcl::SAC_RANSAC);
-    seg.setDistanceThreshold(dist_threshold);
+    seg.setModelType(pcl::SACMODEL_PLANE); // 평면 모델 선택 
+    seg.setMethodType(pcl::SAC_RANSAC); // RANSAC 알고리즘 사용
+    seg.setDistanceThreshold(dist_threshold); // 평면에서 점까지의 최대 거리, 이보다 멀면 inlier로 간주하지 않음 -> dist_threshold는 노이즈 수준에 따라 조절 필요 (현재는 1cm)
 
     seg.setInputCloud(cloud);
     seg.segment(*inliers, *coefficients);
 
     plane = {0, 0, 0, 0};
     confidence = 0;
-    if (inliers->indices.size() < 100) {
+    if (inliers->indices.size() < 100) { // 평면에 속하는 점들의 인덱스
         return;
     }
 
@@ -233,8 +241,8 @@ void PlaneFitting(std::vector<float> &plane, float &confidence,
               << coefficients->values[1] << " "
               << coefficients->values[2] << " "
               << coefficients->values[3] << std::endl;
-    plane = coefficients->values;
-    confidence = static_cast<float>(inliers->indices.size()) / cloud->size();
+    plane = coefficients->values; // 평면 방정식 계수
+    confidence = static_cast<float>(inliers->indices.size()) / cloud->size(); // 전체 점 중 몇 퍼센트가 평면에 속하는지 -> 평면 모델의 신뢰도 판단 기준
     std::cout << "inlier percentage: " << confidence << std::endl;
 
     auto point = cloud->points[inliers->indices[0]];
